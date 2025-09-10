@@ -1,6 +1,7 @@
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from .utils import ROOMS, CURRENCIES
+
 
 def main_menu_kb(has_active_mtt: bool = True) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
@@ -16,7 +17,8 @@ def main_menu_kb(has_active_mtt: bool = True) -> InlineKeyboardMarkup:
     kb.adjust(2, 2, 2, 1)
     return kb.as_markup()
 
-def venue_kb():
+
+def venue_kb() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.button(text="🌐 Online", callback_data="venue:ONLINE")
     kb.button(text="🏠 Offline", callback_data="venue:OFFLINE")
@@ -24,7 +26,8 @@ def venue_kb():
     kb.adjust(2, 1)
     return kb.as_markup()
 
-def format_kb():
+
+def format_kb() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.button(text="💵 Cash", callback_data="format:CASH")
     kb.button(text="🏆 MTT", callback_data="format:MTT")
@@ -33,7 +36,8 @@ def format_kb():
     kb.adjust(2, 2)
     return kb.as_markup()
 
-def game_kb():
+
+def game_kb() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.button(text="♥️ Holdem", callback_data="game:HOLDEM")
     kb.button(text="♠️ Omaha", callback_data="game:OMAHA")
@@ -44,18 +48,31 @@ def game_kb():
     kb.adjust(2, 2, 2)
     return kb.as_markup()
 
-def rooms_kb(include_other: bool = True):
+
+def rooms_kb(include_other: bool = True) -> InlineKeyboardMarkup:
+    """
+    Румы — один столбец (по одной кнопке в строке),
+    внизу отдельной строкой — Back и Cancel.
+    """
     kb = InlineKeyboardBuilder()
+
+    # по одному в строке
     for text, value in ROOMS:
-        kb.button(text=text, callback_data=f"room:{value}")
+        kb.row(InlineKeyboardButton(text=text, callback_data=f"room:{value}"))
+
     if include_other:
-        kb.button(text="➕ Other", callback_data="room:__OTHER__")
-    kb.button(text="⬅️ Back", callback_data="back")
-    kb.button(text="✖️ Cancel", callback_data="cancel")
-    kb.adjust(3, 3, 3, 2)
+        kb.row(InlineKeyboardButton(text="➕ Other", callback_data="room:__OTHER__"))
+
+    # нижняя строка: назад / отмена
+    kb.row(
+        InlineKeyboardButton(text="⬅️ Back", callback_data="back"),
+        InlineKeyboardButton(text="✖️ Cancel", callback_data="cancel"),
+    )
+
     return kb.as_markup()
 
-def currencies_kb():
+
+def currencies_kb() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     for text, code in CURRENCIES:
         kb.button(text=text, callback_data=f"cur:{code}")
@@ -65,7 +82,8 @@ def currencies_kb():
     kb.adjust(3, 3, 2)
     return kb.as_markup()
 
-def active_sessions_kb(sessions: list[tuple[int, str]]):
+
+def active_sessions_kb(sessions: list[tuple[int, str]]) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     for sid, title in sessions:
         kb.button(text=title, callback_data=f"as:{sid}")
