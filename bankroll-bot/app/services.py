@@ -1,10 +1,15 @@
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Optional, Sequence
+
 from sqlalchemy import select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from .models import User, Bankroll, UserRoom, UserPlace, Session, Transaction
 from .enums import VenueType, FormatType, GameVariant, SessionStatus, TxType
 from .utils import signed_amount
+
 
 # --- Users ---
 async def get_or_create_user(db: AsyncSession, telegram_id: int, tg_username: Optional[str]) -> User:
@@ -18,18 +23,14 @@ async def get_or_create_user(db: AsyncSession, telegram_id: int, tg_username: Op
     await db.refresh(user)
     return user
 
-from sqlalchemy import update
-from sqlalchemy.ext.asyncio import AsyncSession
-from .models import User
 
-async def set_user_nickname(session: AsyncSession, user_id: int, nickname: str) -> None:
-    # правильные скобки и форматирование
-    await session.execute(
+async def set_user_nickname(db: AsyncSession, user_id: int, nickname: str) -> None:
+    await db.execute(
         update(User)
         .where(User.id == user_id)
         .values(nickname=nickname)
     )
-    await session.commit()
+    await db.commit()
 
 
 # --- Bankrolls ---
@@ -41,14 +42,20 @@ async def list_bankrolls(db: AsyncSession, user_id: int, currency: Optional[str]
     res = await db.execute(q)
     return res.scalars().all()
 
+
 async def create_bankroll(db: AsyncSession, user_id: int, name: str, currency: str, make_default: bool = True) -> Bankroll:
     if make_default:
-        await db.execute(update(Bankroll).where(Bankroll.user_id == user_id).values(is_default=False))
+        await db.execute(
+            update(Bankroll)
+            .where(Bankroll.user_id == user_id)
+            .values(is_default=False)
+        )
     br = Bankroll(user_id=user_id, name=name, currency=currency, is_default=make_default)
     db.add(br)
     await db.commit()
     await db.refresh(br)
     return br
+
 
 # --- Rooms/Places currency defaults ---
 async def get_or_create_room(db: AsyncSession, user_id: int, name: str) -> UserRoom:
@@ -62,6 +69,7 @@ async def get_or_create_room(db: AsyncSession, user_id: int, name: str) -> UserR
     await db.refresh(room)
     return room
 
+
 async def get_or_create_place(db: AsyncSession, user_id: int, name: str) -> UserPlace:
     res = await db.execute(select(UserPlace).where(UserPlace.user_id == user_id, UserPlace.name == name))
     place = res.scalar_one_or_none()
@@ -72,6 +80,7 @@ async def get_or_create_place(db: AsyncSession, user_id: int, name: str) -> User
     await db.commit()
     await db.refresh(place)
     return place
+
 
 # --- Sessions ---
 async def create_session(
@@ -113,55 +122,94 @@ async def create_session(
     await db.refresh(s)
     return s
 
-async def add_tx(db: AsyncSession, *, user_id: int, bankroll_id: int, session_id: Optional[int], tx_type: TxType, amount: float, currency: str, note: str | None = None) -> Transaction:
-    tx = Transaction(user_id=user_id, bankroll_id=bankroll_id, session_id=session_id, type=tx_type, amount=amount, currency=currency, note=note)
+
+async def add_tx(
+    db: AsyncSession,
+    *,
+    user_id: int,
+    bankroll_id: int,
+    session_id: Optional[int],
+    tx_type: TxType,
+    amount: float,
+    currency: str,
+    note: str | None = None
+) -> Transaction:
+    tx = Transaction(
+        user_id=user_id,
+        bankroll_id=bankroll_id,
+        session_id=session_id,
+        type=tx_type,
+        amount=amount,
+        currency=currency,
+        note=note,
+    )
     db.add(tx)
     await db.commit()
     await db.refresh(tx)
     return tx
 
+
 async def list_active_sessions(db: AsyncSession, user_id: int) -> list[Session]:
-    res = await db.execute(select(Session).where(Session.user_id == user_id, Session.status == SessionStatus.ACTIVE).order_by(Session.started_at.asc()))
+    res = await db.execute(
+        select(Session)
+        .where(Session.user_id == user_id, Session.status == SessionStatus.ACTIVE)
+        .order_by(Session.started_at.asc())
+    )
     return list(res.scalars().all())
+
 
 async def close_session(db: AsyncSession, session: Session) -> None:
     session.status = SessionStatus.CLOSED
     session.ended_at = datetime.utcnow()
     await db.commit()
 
+
 # --- Balance & Reports ---
 async def bankroll_balance(db: AsyncSession, user_id: int, bankroll_id: int) -> float:
-    res = await db.execute(select(Transaction.type, func.sum(Transaction.amount)).where(Transaction.user_id == user_id, Transaction.bankroll_id == bankroll_id, Transaction.is_deleted == False).group_by(Transaction.type))
+    res = await db.execute(
+        select(Transaction.type, func.sum(Transaction.amount))
+        .where(
+            Transaction.user_id == user_id,
+            Transaction.bankroll_id == bankroll_id,
+            Transaction.is_deleted == False,  # noqa: E712
+        )
+        .group_by(Transaction.type)
+    )
     total = 0.0
     for tx_type, sum_amount in res.all():
-        # sum_amount may be Decimal
         total += signed_amount(tx_type, float(sum_amount or 0))
     return round(total, 2)
 
+
 async def report_stats(db: AsyncSession, user_id: int, currency: str, date_from: datetime, date_to: datetime) -> dict:
     # Суммарный профит как сумма sign(amount) по всем транзакциям данной валюты
-    res = await db.execute(select(Transaction.type, func.sum(Transaction.amount)).where(
-        Transaction.user_id == user_id,
-        Transaction.currency == currency,
-        Transaction.at >= date_from,
-        Transaction.at < date_to,
-        Transaction.is_deleted == False,
-    ).group_by(Transaction.type))
+    res = await db.execute(
+        select(Transaction.type, func.sum(Transaction.amount))
+        .where(
+            Transaction.user_id == user_id,
+            Transaction.currency == currency,
+            Transaction.at >= date_from,
+            Transaction.at < date_to,
+            Transaction.is_deleted == False,  # noqa: E712
+        )
+        .group_by(Transaction.type)
+    )
     profit = 0.0
     for tx_type, s in res.all():
         profit += signed_amount(tx_type, float(s or 0.0))
 
     # Кол-во закрытых сессий в периоде
-    sres = await db.execute(select(func.count()).select_from(Session).where(
-        Session.user_id == user_id,
-        Session.currency == currency,
-        Session.status == SessionStatus.CLOSED,
-        Session.ended_at != None,
-        Session.ended_at >= date_from,
-        Session.ended_at < date_to,
-    ))
+    sres = await db.execute(
+        select(func.count()).select_from(Session).where(
+            Session.user_id == user_id,
+            Session.currency == currency,
+            Session.status == SessionStatus.CLOSED,
+            Session.ended_at != None,  # noqa: E711
+            Session.ended_at >= date_from,
+            Session.ended_at < date_to,
+        )
+    )
     sessions_count = int(sres.scalar() or 0)
-
     avg_per_session = round(profit / sessions_count, 2) if sessions_count else 0.0
 
     return {
