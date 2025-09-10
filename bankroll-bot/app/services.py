@@ -24,7 +24,9 @@ async def get_or_create_user(db: AsyncSession, telegram_id: int, tg_username: Op
     return user
 
 
-async def set_user_nickname(db: AsyncSession, user_id: int, nickname: str) -> None:
+async def set_user_nickname(db: AsyncSession, user_or_id: User | int, nickname: str) -> None:
+    # допускаем как объект User, так и целочисленный id
+    user_id = user_or_id.id if isinstance(user_or_id, User) else int(user_or_id)
     await db.execute(
         update(User)
         .where(User.id == user_id)
@@ -217,3 +219,4 @@ async def report_stats(db: AsyncSession, user_id: int, currency: str, date_from:
         "sessions": sessions_count,
         "avg_per_session": avg_per_session,
     }
+
