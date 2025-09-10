@@ -18,9 +18,19 @@ async def get_or_create_user(db: AsyncSession, telegram_id: int, tg_username: Op
     await db.refresh(user)
     return user
 
-async def set_user_nickname(db: AsyncSession, user: User, nickname: str) -> None:
-    user.nickname = nickname.strip()[:50]
-    await db.commit()
+from sqlalchemy import update
+from sqlalchemy.ext.asyncio import AsyncSession
+from .models import User
+
+async def set_user_nickname(session: AsyncSession, user_id: int, nickname: str) -> None:
+    # правильные скобки и форматирование
+    await session.execute(
+        update(User)
+        .where(User.id == user_id)
+        .values(nickname=nickname)
+    )
+    await session.commit()
+
 
 # --- Bankrolls ---
 async def list_bankrolls(db: AsyncSession, user_id: int, currency: Optional[str] = None) -> Sequence[Bankroll]:
