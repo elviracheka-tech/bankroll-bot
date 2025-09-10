@@ -9,16 +9,16 @@ from aiogram.client.default import DefaultBotProperties
 from .config import Settings as AppSettings
 from .db import init_db
 
-# модуль handlers.settings алиасим явно
+# модули с роутерами
 from .handlers import (
     start,
-    menu,
     sessions,
     tournaments,
     payouts,
     history,
     report,
-    settings as settings_handler,
+    settings as settings_handler,  # алиас, чтобы не путать с конфигом
+    menu,  # меню подключим последним, как fallback
 )
 
 
@@ -37,15 +37,15 @@ async def main():
     # на всякий случай снимаем вебхук и чистим невзятые апдейты
     await bot.delete_webhook(drop_pending_updates=True)
 
-    # подключаем роутеры
+    # порядок важен: сначала узкие роутеры действий, потом меню как fallback
     dp.include_router(start.router)
-    dp.include_router(menu.router)
     dp.include_router(sessions.router)
     dp.include_router(tournaments.router)
     dp.include_router(payouts.router)
     dp.include_router(history.router)
     dp.include_router(report.router)
-    dp.include_router(settings_handler.router)  # <-- тут был конфликт имён
+    dp.include_router(settings_handler.router)
+    dp.include_router(menu.router)  # <-- ДОЛЖЕН быть последним
 
     await dp.start_polling(bot)
 
@@ -55,4 +55,3 @@ if __name__ == "__main__":
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
         print("Bot stopped")
-
