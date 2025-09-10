@@ -159,7 +159,7 @@ async def report_stats(db: AsyncSession, user_id: int, currency: str, date_from:
         Session.ended_at != None,
         Session.ended_at >= date_from,
         Session.ended_at < date_to,
-    )))
+    ))
     sessions_count = int(sres.scalar() or 0)
 
     avg_per_session = round(profit / sessions_count, 2) if sessions_count else 0.0
